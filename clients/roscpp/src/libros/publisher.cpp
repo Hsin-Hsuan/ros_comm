@@ -29,6 +29,8 @@
 #include "ros/publication.h"
 #include "ros/node_handle.h"
 #include "ros/topic_manager.h"
+// ROSCHEDULER
+#include "ros_rosch/publish_counter.h"
 
 namespace ros
 {
@@ -77,6 +79,23 @@ Publisher::~Publisher()
 
 void Publisher::publish(const boost::function<SerializedMessage(void)>& serfunc, SerializedMessage& m) const
 {
+  // ROSCHEDULER
+  rosch::SingletonSchedNodeManager &sched_node_manager(
+      rosch::SingletonSchedNodeManager::getInstance());
+  if (sched_node_manager.isRunningFailSafeFunction()) {
+    if (!sched_node_manager.publish_counter.isRemainPubTopic(impl_->topic_))
+      return;
+  } else {
+    sched_node_manager.publish_counter.removeRemainPubTopic(impl_->topic_);
+    if (sched_node_manager.isDeadlineMiss() &&
+        !(sched_node_manager.publishEvenIfMissedDeadline())) {
+      std::cout << "Cannot publish the topic(" << impl_->topic_ << ")."
+                << "Because already missed deadline." << std::endl;
+      return;
+    }
+  }
+  std::cout << "Published topic:" << impl_->topic_ << std::endl;
+  
   if (!impl_)
   {
     ROS_ASSERT_MSG(false, "Call to publish() on an invalid Publisher (topic [%s])", impl_->topic_.c_str());

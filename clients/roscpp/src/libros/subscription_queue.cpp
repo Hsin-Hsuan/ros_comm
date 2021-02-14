@@ -30,6 +30,27 @@
 #include "ros/message_deserializer.h"
 #include "ros/subscription_callback_helper.h"
 
+//#define ROSCH
+//#ifdef ROSCH
+#include <resch/api.h>
+#include "ros_rosch/bridge.hpp"
+//#include "ros_rosch/node_graph.hpp"
+//#include <ctime>
+//#include <sched.h>
+//#endif
+#define ROSCHEDULER
+#ifdef ROSCHEDULER
+#include "ros_rosch/event_notification.hpp"
+#include "ros_rosch/publish_counter.h"
+#include "ros_rosch/task_attribute_processer.h"
+#include "ros_rosch/type.h"
+#include <boost/bind.hpp>
+#include <boost/thread.hpp>
+#include <boost/timer/timer.hpp>
+#include <poll.h>
+#include <ros/ros.h>
+#endif
+
 namespace ros
 {
 
@@ -39,6 +60,14 @@ SubscriptionQueue::SubscriptionQueue(const std::string& topic, int32_t queue_siz
 , full_(false)
 , queue_size_(0)
 , allow_concurrent_callbacks_(allow_concurrent_callbacks)
+#ifdef ROSCH
+      ,
+      analyzer(rosch::get_node_name(), topic)
+#endif
+#ifdef ROSCHEDULER
+      ,
+      sched_node_manager_(rosch::SingletonSchedNodeManager::getInstance())
+#endif
 {}
 
 SubscriptionQueue::~SubscriptionQueue()
@@ -161,10 +190,86 @@ CallbackInterface::CallResult SubscriptionQueue::call()
 
     SubscriptionCallbackHelperCallParams params;
     params.event = MessageEvent<void const>(msg, i.deserializer->getConnectionHeader(), i.receipt_time, i.nonconst_need_copy, MessageEvent<void const>::CreateFunction());
-    i.helper->call(params);
+
+    // ROSCH
+    std::cout << "-------------------------------------" << std::endl;
+    if (sched_node_manager_.subscribe_counter.removeRemainSubTopic(topic_)) {
+      boost::thread app_th(
+          boost::bind(&ros::SubscriptionQueue::appThread, this, i, params));
+      waitAppThread();
+    } else {
+      i.helper->call(params);
+    }
+    std::cout << "-------------------------------------" << std::endl;
+    if (0 == sched_node_manager_.subscribe_counter.getRemainSubTopicSize()) {
+      sched_node_manager_.subscribe_counter.resetRemainSubTopic();
+      sched_node_manager_.publish_counter.resetRemainPubTopic();
+      sched_node_manager_.resetDeadlineMiss();
+      sched_node_manager_.resetPollTime();
+      sched_node_manager_.resetFailSafeFunction();
+      std::cout
+          << "-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*"
+          << std::endl;
+    }
+
   }
 
   return CallbackInterface::Success;
+}
+
+// ROSCHEDULER
+void SubscriptionQueue::waitAppThread() {
+  boost::timer::cpu_timer timer;
+  int ret;
+
+  ret = event_notification.update(sched_node_manager_.getPollTime());
+  //  std::cout << "Poll time: " << sched_node_manager_.getPollTime() <<
+  //  std::endl;
+
+
+#ifndef USE_LINUX_SYSTEM_CALL
+#ifdef HYPERPERIOD_MODE
+	cpu_set_t mask;
+	CPU_ZERO(&mask);
+
+	set_affinity(sched_node_manager_.getUseCores());
+	ros_rt_set_priority(sched_node_manager_.getPriority());
+#endif
+#endif
+
+  if (ret != 1) {
+		std::cout << "PID = " << getpid() << std::endl;
+    std::cout << "==== Deadline miss!! ====" << std::endl;
+    std::cout << "Remain Topics: "
+              << sched_node_manager_.publish_counter.getRemainPubTopicSize()
+              << "/" << sched_node_manager_.publish_counter.getPubTopicSize()
+              << std::endl;
+    sched_node_manager_.missedDeadline();
+    if (!sched_node_manager_.isRanFailSafeFunction())
+      sched_node_manager_.runFailSafeFunction();
+    std::cout << "========================" << std::endl;
+    rosch::TaskAttributeProcesser task_attr_proc;
+    task_attr_proc.setDefaultScheduling(sched_node_manager_.v_pid);
+    ret = event_notification.update(-1);
+    task_attr_proc.setCoreAffinity(sched_node_manager_.getUseCores());
+  } else {
+    std::cout << "==== Finished before the deadline ====" << std::endl;
+    std::cout << "Remain Topics: "
+              << sched_node_manager_.publish_counter.getRemainPubTopicSize()
+              << "/" << sched_node_manager_.publish_counter.getPubTopicSize()
+              << std::endl;
+    std::cout << "========================" << std::endl;
+  }
+  int elapsed_time_ms = (int)((double)timer.elapsed().wall) / 1000000.0;
+  sched_node_manager_.subPollTime(elapsed_time_ms);
+  std::cout << "Elapsed time: " << elapsed_time_ms << std::endl
+            << "Remain poll time:" << sched_node_manager_.getPollTime()
+            << std::endl;
+}
+
+void SubscriptionQueue::appThread(Item i, SubscriptionCallbackHelperCallParams params){
+	i.helper->call(params);
+	event_notification.signal();
 }
 
 bool SubscriptionQueue::ready()

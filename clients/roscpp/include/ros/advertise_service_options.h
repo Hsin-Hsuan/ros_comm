@@ -72,6 +72,7 @@ struct ROSCPP_DECL AdvertiseServiceOptions
     datatype = st::datatype<MReq>();
     req_datatype = mt::datatype<MReq>();
     res_datatype = mt::datatype<MRes>();
+    // helper = ServiceCallbackHelperPtr(new ServiceCallbackHelperT<ServiceSpec<MReq, MRes> >(_callback));
     helper = boost::make_shared<ServiceCallbackHelperT<ServiceSpec<MReq, MRes> > >(_callback);
   }
 
@@ -92,6 +93,7 @@ struct ROSCPP_DECL AdvertiseServiceOptions
     datatype = st::datatype<Service>();
     req_datatype = mt::datatype<Request>();
     res_datatype = mt::datatype<Response>();
+    // helper = ServiceCallbackHelperPtr(new ServiceCallbackHelperT<ServiceSpec<Request, Response> >(_callback));
     helper = boost::make_shared<ServiceCallbackHelperT<ServiceSpec<Request, Response> > >(_callback);
   }
 
@@ -112,6 +114,7 @@ struct ROSCPP_DECL AdvertiseServiceOptions
     datatype = st::datatype<Request>();
     req_datatype = mt::datatype<Request>();
     res_datatype = mt::datatype<Response>();
+    // helper = ServiceCallbackHelperPtr(new ServiceCallbackHelperT<Spec>(_callback));
     helper = boost::make_shared<ServiceCallbackHelperT<Spec> >(_callback);
   }
 

@@ -78,10 +78,12 @@ public:
 
   virtual bool isIntraprocess() { return false; }
   virtual void getPublishTypes(bool& ser, bool& nocopy, const std::type_info& ti) { (void)ti; ser = true; nocopy = false; }
-
+  
   const std::string& getMD5Sum();
   const std::string& getDataType();
   const std::string& getMessageDefinition();
+  const int getPriority();
+  const void setPriority(int priority);
 
 protected:
   bool verifyDatatype(const std::string &datatype);
@@ -91,10 +93,9 @@ protected:
   std::string destination_caller_id_;
   Stats stats_;
   std::string topic_;
+  int priority_;
 };
 
 } // namespace ros
 
 #endif // ROSCPP_SUBSCRIBER_LINK_H
-
-

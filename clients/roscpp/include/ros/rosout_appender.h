@@ -80,6 +80,8 @@ protected:
   bool disable_topics_;
 
   boost::thread publish_thread_;
+
+
 };
 
 } // namespace ros

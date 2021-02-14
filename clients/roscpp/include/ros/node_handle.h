@@ -51,6 +51,8 @@
 
 #include <xmlrpcpp/XmlRpcValue.h>
 
+#include <XmlRpcValue.h>
+
 namespace ros
 {
 

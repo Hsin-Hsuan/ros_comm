@@ -37,6 +37,7 @@ SubscriberLink::SubscriberLink()
   : connection_id_(0)
 {
 
+  priority_ = 0;
 }
 
 SubscriberLink::~SubscriberLink()
@@ -82,6 +83,17 @@ const std::string& SubscriberLink::getMessageDefinition()
 {
   PublicationPtr parent = parent_.lock();
   return parent->getMessageDefinition();
+}
+
+const int SubscriberLink::getPriority()
+{
+    return priority_;
+}
+
+const void SubscriberLink::setPriority(int priority)
+{
+    priority_ = priority;
+    return;
 }
 
 } // namespace ros
